@@ -1,10 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
-import type { Post } from "@/generated/prisma/client";
 
-// [GET] 管理用・記事詳細取得 (下書きも取得可能)
-export const GET = async (req: NextRequest, { params }: { params: { id: string } }) => {
-  const { id } = params;
+// 型定義の変更: params は Promise になります
+type RouteParams = {
+  params: Promise<{ id: string }>;
+};
+
+// [GET] 管理用・記事詳細取得
+export const GET = async (req: NextRequest, { params }: RouteParams) => {
+  // ★ここで await してから id を取り出す
+  const { id } = await params;
+
   try {
     const post = await prisma.post.findUnique({
       where: { id },
@@ -29,8 +35,10 @@ export const GET = async (req: NextRequest, { params }: { params: { id: string }
 };
 
 // [PUT] 記事更新
-export const PUT = async (req: NextRequest, { params }: { params: { id: string } }) => {
-  const { id } = params;
+export const PUT = async (req: NextRequest, { params }: RouteParams) => {
+  // ★ここでも await
+  const { id } = await params;
+
   try {
     const { title, content, coverImageURL, categoryIds, isPublished } = await req.json();
 
@@ -41,11 +49,11 @@ export const PUT = async (req: NextRequest, { params }: { params: { id: string }
         title,
         content,
         coverImageURL,
-        isPublished, // 追加
+        isPublished,
       },
     });
 
-    // カテゴリの更新 (一旦全削除して再登録する方式)
+    // カテゴリの更新 (一旦全削除して再登録)
     await prisma.postCategory.deleteMany({
       where: { postId: id },
     });
@@ -67,8 +75,10 @@ export const PUT = async (req: NextRequest, { params }: { params: { id: string }
 };
 
 // [DELETE] 記事削除
-export const DELETE = async (req: NextRequest, { params }: { params: { id: string } }) => {
-  const { id } = params;
+export const DELETE = async (req: NextRequest, { params }: RouteParams) => {
+  // ★ここでも await
+  const { id } = await params;
+
   try {
     await prisma.post.delete({
       where: { id },

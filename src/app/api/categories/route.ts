@@ -5,20 +5,7 @@ import type { Category } from "@/generated/prisma/client";
 // [GET] /api/categories カテゴリ一覧の取得
 export const GET = async (req: NextRequest) => {
   try {
-    // const categories: Category[] = await prisma.category.findMany({
-    //   orderBy: {
-    //     createdAt: "desc", // 降順 (新しい順)
-    //   },
-    // });
-    // const categories = await prisma.category.findMany({
-    //   select: {
-    //     id: true,
-    //     name: true,
-    //   },
-    //   orderBy: {
-    //     createdAt: "desc",
-    //   },
-    // });
+
     const categories = await prisma.category.findMany({
       select: {
         id: true,
@@ -35,7 +22,7 @@ export const GET = async (req: NextRequest) => {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: "asc",
       },
     });
     return NextResponse.json(categories);

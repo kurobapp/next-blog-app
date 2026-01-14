@@ -1,188 +1,163 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner } from "@fortawesome/free-solid-svg-icons";
-import { twMerge } from "tailwind-merge";
-import { Category } from "@/app/_types/Category";
 import Link from "next/link";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSpinner, faGripVertical } from "@fortawesome/free-solid-svg-icons"; // アイコン追加
+import { twMerge } from "tailwind-merge";
+import type { Category } from "@/app/_types/Category";
 
-// カテゴリをフェッチしたときのレスポンスのデータ型
-type RawApiCategoryResponse = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-};
+// dnd-kit 関連のインポート
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
-// カテゴリの一覧表示のページ
-const Page: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchErrorMsg, setFetchErrorMsg] = useState<string | null>(null);
+// ソート可能なリストアイテムコンポーネント
+const SortableItem = ({ category }: { category: Category }) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: category.id });
 
-  // カテゴリ配列 (State)。取得中と取得失敗時は null、既存カテゴリが0個なら []
-  const [categories, setCategories] = useState<Category[] | null>(null);
-
-  // ウェブAPI (/api/categories) からカテゴリの一覧をフェッチする関数の定義
-  const fetchCategories = async () => {
-    try {
-      setIsLoading(true);
-
-      // フェッチ処理の本体
-      const requestUrl = "/api/categories";
-      const res = await fetch(requestUrl, {
-        method: "GET",
-        cache: "no-store",
-      });
-
-      // レスポンスのステータスコードが200以外の場合 (カテゴリのフェッチに失敗した場合)
-      if (!res.ok) {
-        setCategories(null);
-        throw new Error(`${res.status}: ${res.statusText}`); // -> catch節に移動
-      }
-
-      // レスポンスのボディをJSONとして読み取りカテゴリ配列 (State) にセット
-      const apiResBody = (await res.json()) as RawApiCategoryResponse[];
-      setCategories(
-        apiResBody.map((body) => ({
-          id: body.id,
-          name: body.name,
-        })),
-      );
-    } catch (error) {
-      const errorMsg =
-        error instanceof Error
-          ? `カテゴリの一覧のフェッチに失敗しました: ${error.message}`
-          : `予期せぬエラーが発生しました ${error}`;
-      console.error(errorMsg);
-      setFetchErrorMsg(errorMsg);
-    } finally {
-      // 成功した場合も失敗した場合もローディング状態を解除
-      setIsLoading(false);
-    }
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
   };
 
-  // コンポーネントがマウントされたとき (初回レンダリングのとき) に1回だけ実行
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="mb-2 flex items-center justify-between rounded-md border border-slate-400 p-2 bg-white"
+    >
+      <Link href={`/admin/categories/${category.id}`} className="text-blue-600 hover:underline">
+        {category.name}
+      </Link>
+      
+      {/* ドラッグ用ハンドル */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab text-slate-400 hover:text-slate-600 px-2"
+      >
+        <FontAwesomeIcon icon={faGripVertical} />
+      </button>
+    </div>
+  );
+};
+
+const Page: React.FC = () => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ドラッグ操作のセンサー設定（マウスとキーボードに対応）
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch("/api/categories");
+        if (!res.ok) throw new Error("Fetch failed");
+        const data = await res.json();
+        setCategories(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchCategories();
   }, []);
 
-  // カテゴリをウェブAPIから取得中の画面
-  if (isLoading) {
-    return (
-      <div className="text-gray-500">
-        <FontAwesomeIcon icon={faSpinner} className="mr-1 animate-spin" />
-        Loading...
-      </div>
-    );
-  }
+  // ドラッグ終了時の処理
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  // 「削除」のボタンが押下されたときにコールされる関数
-  const handleDelete = async (category: Category) => {
-    // prettier-ignore
-    if (!window.confirm(`カテゴリ「${category.name}」を本当に削除しますか？`)) {
-      return;
-    }
+    if (over && active.id !== over.id) {
+      setCategories((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        
+        // 配列の並び順を変更
+        const newItems = arrayMove(items, oldIndex, newIndex);
 
-    setIsSubmitting(true);
-    try {
-      const requestUrl = `/api/admin/categories/${category.id}`;
-      const res = await fetch(requestUrl, {
-        method: "DELETE",
-        cache: "no-store",
+        // APIに新しい順序を保存
+        saveOrder(newItems);
+
+        return newItems;
       });
-
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`);
-      }
-      await fetchCategories(); // カテゴリの一覧を再取得
-    } catch (error) {
-      const errorMsg =
-        error instanceof Error
-          ? `カテゴリのDELETEリクエストに失敗しました\n${error.message}`
-          : `予期せぬエラーが発生しました\n${error}`;
-      console.error(errorMsg);
-      window.alert(errorMsg);
-      setIsSubmitting(false);
     }
   };
 
-  // カテゴリをウェブAPIから取得することに失敗したときの画面
-  if (!categories) {
-    return <div className="text-red-500">{fetchErrorMsg}</div>;
-  }
+  // APIに保存する関数
+  const saveOrder = async (items: Category[]) => {
+    try {
+      // id と index (sortOrder) のペアを作って送信
+      const orderData = items.map((item, index) => ({
+        id: item.id,
+        sortOrder: index,
+      }));
 
-  // カテゴリ取得完了後の画面
+      await fetch("/api/admin/categories/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+    } catch (error) {
+      console.error("並び順の保存に失敗しました", error);
+    }
+  };
+
+  if (isLoading) return <div><FontAwesomeIcon icon={faSpinner} className="animate-spin" /> Loading...</div>;
+
   return (
     <main>
-      <div className="text-2xl font-bold">カテゴリの管理</div>
-
-      <div className="mb-3 flex items-end justify-end">
-        <Link href="/admin/categories/new">
-          <button
-            type="submit"
-            className={twMerge(
-              "rounded-md px-5 py-1 font-bold",
-              "bg-blue-500 text-white hover:bg-blue-600",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            )}
-          >
-            カテゴリの新規作成
-          </button>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-2xl font-bold">カテゴリ管理</div>
+        <Link
+          href="/admin/categories/new"
+          className="rounded-md bg-blue-500 px-4 py-2 font-bold text-white hover:bg-blue-600"
+        >
+          新規作成
         </Link>
       </div>
 
-      {categories.length === 0 ? (
-        <div className="text-gray-500">
-          （カテゴリは1個も作成されていません）
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="mb-2 text-sm text-gray-500">
+          ※ 右側のアイコン <FontAwesomeIcon icon={faGripVertical} /> をドラッグして並び替えできます
         </div>
-      ) : (
-        <div>
-          <div className="space-y-3">
+        
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={categories}
+            strategy={verticalListSortingStrategy}
+          >
             {categories.map((category) => (
-              <div
-                key={category.id}
-                className={twMerge(
-                  "border border-slate-400 p-3",
-                  "flex items-center justify-between",
-                  "font-bold",
-                )}
-              >
-                <div>
-                  <Link href={`/admin/categories/${category.id}`}>
-                    {category.name}
-                  </Link>
-                </div>
-                <div className="flex space-x-2">
-                  <Link href={`/admin/categories/${category.id}`}>
-                    <button
-                      type="button"
-                      className={twMerge(
-                        "rounded-md px-5 py-1 font-bold",
-                        "bg-indigo-500 text-white hover:bg-indigo-600",
-                      )}
-                    >
-                      編集
-                    </button>
-                  </Link>
-                  <button
-                    type="button"
-                    className={twMerge(
-                      "rounded-md px-5 py-1 font-bold",
-                      "bg-red-500 text-white hover:bg-red-600",
-                    )}
-                    onClick={() => {
-                      handleDelete(category);
-                    }}
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
+              <SortableItem key={category.id} category={category} />
             ))}
-          </div>
-        </div>
-      )}
+          </SortableContext>
+        </DndContext>
+      </div>
     </main>
   );
 };
