@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 import type { Post } from "@/generated/prisma/client";
 
+// リクエストボディの型定義
 type RequestBody = {
   title: string;
   content: string;
@@ -10,10 +11,27 @@ type RequestBody = {
   isPublished: boolean;
 };
 
-// ★追加: 管理画面用の全件取得API (下書きも含む)
+// [GET] 管理用・記事一覧取得 (検索・フィルタリング対応)
 export const GET = async (req: NextRequest) => {
   try {
+    const { searchParams } = new URL(req.url);
+    const sort = searchParams.get("sort") || "desc"; // "desc"(新しい順) または "asc"(古い順)
+    const categoryId = searchParams.get("categoryId"); // カテゴリIDによる絞り込み
+
+    // 検索条件の組み立て
+    const whereCondition: any = {};
+    
+    // カテゴリが指定されていればフィルタリング条件に追加
+    if (categoryId) {
+      whereCondition.categories = {
+        some: {
+          categoryId: categoryId,
+        },
+      };
+    }
+
     const posts = await prisma.post.findMany({
+      where: whereCondition,
       select: {
         id: true,
         title: true,
@@ -33,7 +51,7 @@ export const GET = async (req: NextRequest) => {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: sort === "asc" ? "asc" : "desc", // 並び順を適用
       },
     });
 
@@ -47,12 +65,13 @@ export const GET = async (req: NextRequest) => {
   }
 };
 
-// 既存の POST メソッド (そのまま残す)
+// [POST] 記事新規作成
 export const POST = async (req: NextRequest) => {
   try {
     const requestBody: RequestBody = await req.json();
     const { title, content, coverImageURL, categoryIds, isPublished } = requestBody;
 
+    // カテゴリの存在確認
     const categories = await prisma.category.findMany({
       where: {
         id: {
@@ -60,9 +79,15 @@ export const POST = async (req: NextRequest) => {
         },
       },
     });
-    
-    // ... (以下、既存の処理と同じ)
-    
+
+    if (categories.length !== categoryIds.length) {
+      return NextResponse.json(
+        { error: "指定されたカテゴリのいくつかが存在しません" },
+        { status: 400 },
+      );
+    }
+
+    // 投稿記事テーブルにレコードを追加
     const post: Post = await prisma.post.create({
       data: {
         title,
@@ -72,6 +97,7 @@ export const POST = async (req: NextRequest) => {
       },
     });
 
+    // 中間テーブルにレコードを追加
     for (const categoryId of categoryIds) {
       await prisma.postCategory.create({
         data: {

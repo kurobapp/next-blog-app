@@ -22,7 +22,7 @@ export const GET = async (req: NextRequest) => {
         },
       },
       orderBy: {
-        createdAt: "asc",
+        sortOrder: "asc",
       },
     });
     return NextResponse.json(categories);
