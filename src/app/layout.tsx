@@ -6,6 +6,7 @@ import { config } from "@fortawesome/fontawesome-svg-core";
 config.autoAddCss = false;
 
 import Header from "@/app/_components/Header";
+import Footer from "@/app/_components/Footer"; // Footerをインポート
 
 export const metadata: Metadata = {
   title: "NextBlogApp",
@@ -20,9 +21,18 @@ const RootLayout: React.FC<Props> = (props) => {
   const { children } = props;
   return (
     <html lang="ja">
-      <body>
+      {/* min-h-screen: 画面の高さいっぱいまで確保
+         flex flex-col: 縦並びにする
+      */}
+      <body className="flex min-h-screen flex-col font-sans text-slate-800">
         <Header />
-        <div className="mx-4 mt-2 max-w-2xl md:mx-auto">{children}</div>
+        
+        {/* flex-1: 空きスペースを全部これ（本文）で埋める → フッターが下に押し出される */}
+        <div className="flex-1 mx-auto mt-6 w-full max-w-7xl px-4">
+          {children}
+        </div>
+        
+        <Footer />
       </body>
     </html>
   );

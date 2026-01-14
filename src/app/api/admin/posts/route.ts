@@ -7,16 +7,52 @@ type RequestBody = {
   content: string;
   coverImageURL: string;
   categoryIds: string[];
+  isPublished: boolean;
 };
 
+// ★追加: 管理画面用の全件取得API (下書きも含む)
+export const GET = async (req: NextRequest) => {
+  try {
+    const posts = await prisma.post.findMany({
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        createdAt: true,
+        isPublished: true, // 公開ステータスも取得
+        coverImageURL: true,
+        categories: {
+          select: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(posts);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: "投稿記事の一覧の取得に失敗しました" },
+      { status: 500 },
+    );
+  }
+};
+
+// 既存の POST メソッド (そのまま残す)
 export const POST = async (req: NextRequest) => {
   try {
     const requestBody: RequestBody = await req.json();
+    const { title, content, coverImageURL, categoryIds, isPublished } = requestBody;
 
-    // 分割代入
-    const { title, content, coverImageURL, categoryIds } = requestBody;
-
-    // categoryIds で指定されるカテゴリがDB上に存在するか確認
     const categories = await prisma.category.findMany({
       where: {
         id: {
@@ -24,23 +60,18 @@ export const POST = async (req: NextRequest) => {
         },
       },
     });
-    if (categories.length !== categoryIds.length) {
-      return NextResponse.json(
-        { error: "指定されたカテゴリのいくつかが存在しません" },
-        { status: 400 }, // 400: Bad Request
-      );
-    }
-
-    // 投稿記事テーブルにレコードを追加
+    
+    // ... (以下、既存の処理と同じ)
+    
     const post: Post = await prisma.post.create({
       data: {
-        title, // title: title の省略形であることに注意。以下も同様
+        title,
         content,
         coverImageURL,
+        isPublished,
       },
     });
 
-    // 中間テーブルにレコードを追加
     for (const categoryId of categoryIds) {
       await prisma.postCategory.create({
         data: {

@@ -29,35 +29,30 @@ const Page: React.FC = () => {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newCoverImageURL, setNewCoverImageURL] = useState("");
+  const [isPublished, setIsPublished] = useState(true); // 追加: デフォルト公開
 
   const router = useRouter();
 
-  // カテゴリ配列 (State)。取得中と取得失敗時は null、既存カテゴリが0個なら []
+  // カテゴリ配列 (State)
   const [checkableCategories, setCheckableCategories] = useState<
     SelectableCategory[] | null
   >(null);
 
-  // コンポーネントがマウントされたとき (初回レンダリングのとき) に1回だけ実行
   useEffect(() => {
-    // ウェブAPI (/api/categories) からカテゴリの一覧をフェッチする関数の定義
     const fetchCategories = async () => {
       try {
         setIsLoading(true);
-
-        // フェッチ処理の本体
         const requestUrl = "/api/categories";
         const res = await fetch(requestUrl, {
           method: "GET",
           cache: "no-store",
         });
 
-        // レスポンスのステータスコードが200以外の場合 (カテゴリのフェッチに失敗した場合)
         if (!res.ok) {
           setCheckableCategories(null);
-          throw new Error(`${res.status}: ${res.statusText}`); // -> catch節に移動
+          throw new Error(`${res.status}: ${res.statusText}`);
         }
 
-        // レスポンスのボディをJSONとして読み取りカテゴリ配列 (State) にセット
         const apiResBody = (await res.json()) as CategoryApiResponse[];
         setCheckableCategories(
           apiResBody.map((body) => ({
@@ -74,7 +69,6 @@ const Page: React.FC = () => {
         console.error(errorMsg);
         setFetchErrorMsg(errorMsg);
       } finally {
-        // 成功した場合も失敗した場合もローディング状態を解除
         setIsLoading(false);
       }
     };
@@ -82,10 +76,8 @@ const Page: React.FC = () => {
     fetchCategories();
   }, []);
 
-  // チェックボックスの状態 (State) を更新する関数
   const switchCategoryState = (categoryId: string) => {
     if (!checkableCategories) return;
-
     setCheckableCategories(
       checkableCategories.map((category) =>
         category.id === categoryId
@@ -96,27 +88,21 @@ const Page: React.FC = () => {
   };
 
   const updateNewTitle = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ここにタイトルのバリデーション処理を追加する
     setNewTitle(e.target.value);
   };
 
   const updateNewContent = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // ここに本文のバリデーション処理を追加する
     setNewContent(e.target.value);
   };
 
   const updateNewCoverImageURL = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ここにカバーイメージURLのバリデーション処理を追加する
     setNewCoverImageURL(e.target.value);
   };
 
-  // フォームの送信処理
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // この処理をしないとページがリロードされるので注意
-
+    e.preventDefault();
     setIsSubmitting(true);
 
-    // ▼▼ 追加 ウェブAPI (/api/admin/posts) にPOSTリクエストを送信する処理
     try {
       const requestBody = {
         title: newTitle,
@@ -125,9 +111,11 @@ const Page: React.FC = () => {
         categoryIds: checkableCategories
           ? checkableCategories.filter((c) => c.isSelect).map((c) => c.id)
           : [],
+        isPublished, // 追加
       };
       const requestUrl = "/api/admin/posts";
       console.log(`${requestUrl} => ${JSON.stringify(requestBody, null, 2)}`);
+      
       const res = await fetch(requestUrl, {
         method: "POST",
         cache: "no-store",
@@ -138,12 +126,12 @@ const Page: React.FC = () => {
       });
 
       if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`); // -> catch節に移動
+        throw new Error(`${res.status}: ${res.statusText}`);
       }
 
       const postResponse = await res.json();
       setIsSubmitting(false);
-      router.push(`/posts/${postResponse.id}`); // 投稿記事の詳細ページに移動
+      router.push(`/admin/posts/${postResponse.id}`); // 作成後は管理画面の詳細へ
     } catch (error) {
       const errorMsg =
         error instanceof Error
@@ -233,6 +221,19 @@ const Page: React.FC = () => {
             placeholder="カバーイメージのURLを記入してください"
             required
           />
+        </div>
+
+        <div className="space-y-1">
+          <div className="font-bold">公開設定</div>
+          <label className="flex items-center space-x-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="h-5 w-5 cursor-pointer"
+            />
+            <span className="text-gray-700">記事を公開する</span>
+          </label>
         </div>
 
         <div className="space-y-1">

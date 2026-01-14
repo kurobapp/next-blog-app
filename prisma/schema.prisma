@@ -1,46 +1,40 @@
-// このファイルを更新したら...
-// 0. `npm run dev` や `npx prisma studio` を停止
-// 1. dev.db を削除
-// 2. npx prisma db push
-// 3. npx prisma generate
-// 4. npx prisma db seed
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql" // もしsqliteなど別のDBを使っている場合は元のままにしてください
 }
 
 // 投稿記事テーブル
 model Post {
-  id             String @id @default(uuid())
+  id             String         @id @default(uuid())
   title          String
   content        String
   coverImageURL  String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  isPublished    Boolean        @default(true) // 追加: 公開設定
   categories     PostCategory[]
 }
 
 // カテゴリテーブル
 model Category {
-  id         String @id @default(uuid())
-  name       String @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  posts      PostCategory[]
+  id        String         @id @default(uuid())
+  name      String         @unique
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  posts     PostCategory[]
 }
 
 // 投稿記事とカテゴリを紐づける中間テーブル
 model PostCategory {
-  id          String @id @default(uuid())
-  postId      String
-  categoryId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  postId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 }

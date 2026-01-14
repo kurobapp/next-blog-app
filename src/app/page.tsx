@@ -39,11 +39,10 @@ const Page: React.FC = () => {
   }, [categoryId, query]);
 
   return (
-    // 全体の幅を95%に設定し、最大幅を1400px程度に抑えて間延びを防ぐ
     <main className="mx-auto w-[95%] max-w-[1400px] py-10">
       <div className="flex flex-col lg:flex-row gap-10 items-start">
         
-        {/* 左側：メインコンテンツ (残りの幅すべて) */}
+        {/* 左側：メインコンテンツ */}
         <div className="w-full flex-1 min-w-0">
           <div className="mb-6 border-b-2 border-gray-100 pb-3">
             <h1 className="text-2xl font-bold text-gray-800">
@@ -57,7 +56,6 @@ const Page: React.FC = () => {
               Loading...
             </div>
           ) : (
-            // Gridをやめて縦並び(flex-col)にする
             <div className="flex flex-col gap-6">
               {posts.map((post) => (
                 <PostSummary key={post.id} post={post} />
@@ -71,7 +69,7 @@ const Page: React.FC = () => {
           )}
         </div>
 
-        {/* 右側：サイドバー (300px固定) */}
+        {/* 右側：サイドバー */}
         <aside className="w-full lg:w-[300px] shrink-0 space-y-8 lg:sticky lg:top-8">
           
           {/* 検索ボックス */}
@@ -101,9 +99,16 @@ const Page: React.FC = () => {
             <div className="w-24 h-24 mx-auto mb-4 relative rounded-full border-2 border-gray-100 shadow-sm overflow-hidden">
               <Image src="/images/avatar.png" alt="Avatar" fill className="object-cover" />
             </div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">くろばっぷ</h3>
+            
+            {/* ここを変更：名前をLinkで囲んで /about へ飛ばす */}
+            <h3 className="text-lg font-bold text-gray-800 mb-2">
+              <Link href="/about" className="hover:text-blue-500 transition-colors">
+                kurobapp
+              </Link>
+            </h3>
+            
             <p className="text-sm text-gray-600 leading-relaxed mb-4">
-              情報系高専生です。ITを味方にして、人生にバフを。
+              ガオ
             </p>
             <Link 
               href="/admin/posts" 

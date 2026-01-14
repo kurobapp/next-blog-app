@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse, NextRequest } from "next/server";
 
-// [GET] /api/posts 記事一覧の取得（検索・カテゴリフィルタ対応）
+// [GET] /api/posts 記事一覧の取得（検索・カテゴリフィルタ対応・公開記事のみ）
 export const GET = async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url);
@@ -9,7 +9,9 @@ export const GET = async (req: NextRequest) => {
     const categoryId = searchParams.get("categoryId"); // カテゴリIDを取得
 
     // 検索・フィルタリングの条件を組み立てる
-    const whereCondition: any = {};
+    const whereCondition: any = {
+      isPublished: true, // 追加: 非公開記事を除外
+    };
 
     // キーワード検索が指定されている場合（タイトルまたは内容に含む）
     if (query) {
@@ -35,7 +37,7 @@ export const GET = async (req: NextRequest) => {
         title: true,
         content: true,
         createdAt: true,
-        coverImageURL: true, // フロントエンドの表示に必要なため追加
+        coverImageURL: true,
         categories: {
           select: {
             category: {

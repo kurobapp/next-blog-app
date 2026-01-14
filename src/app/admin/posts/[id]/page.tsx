@@ -19,6 +19,7 @@ type PostApiResponse = {
   title: string;
   content: string;
   coverImageURL: string;
+  isPublished: boolean; // 追加
   createdAt: string;
   categories: {
     category: {
@@ -44,16 +45,15 @@ const Page: React.FC = () => {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newCoverImageURL, setNewCoverImageURL] = useState("");
+  const [isPublished, setIsPublished] = useState(true); // 追加
 
   const { id } = useParams() as { id: string };
   const router = useRouter();
 
-  // カテゴリ配列 (State)。取得中と取得失敗時は null、既存カテゴリが0個なら []
   const [checkableCategories, setCheckableCategories] = useState<
     SelectableCategory[] | null
   >(null);
 
-  // 編集前の投稿記事のデータ (State)
   const [rawApiPostResponse, setRawApiPostResponse] =
     useState<PostApiResponse | null>(null);
 
@@ -61,7 +61,9 @@ const Page: React.FC = () => {
   useEffect(() => {
     const fetchPost = async () => {
       try {
-        const requestUrl = `/api/posts/${id}`;
+        // 重要: 取得先を管理用API (/api/admin/posts/[id]) に変更
+        // 公開用APIだと下書き記事が404になって編集できなくなるため
+        const requestUrl = `/api/admin/posts/${id}`;
         const res = await fetch(requestUrl, {
           method: "GET",
           cache: "no-store",
@@ -118,20 +120,16 @@ const Page: React.FC = () => {
     fetchCategories();
   }, []);
 
-  // 投稿記事のデータが取得できたらカテゴリの選択状態を更新する
+  // 投稿記事のデータが取得できたらStateを更新
   useEffect(() => {
-    // 初期化済みなら戻る
     if (isInitialized) return;
-
-    // 投稿記事 または カテゴリ一覧 が取得できていないなら戻る
     if (!rawApiPostResponse || !checkableCategories) return;
 
-    // 投稿記事のタイトル、本文、カバーイメージURLを更新
     setNewTitle(rawApiPostResponse.title);
     setNewContent(rawApiPostResponse.content);
     setNewCoverImageURL(rawApiPostResponse.coverImageURL);
+    setIsPublished(rawApiPostResponse.isPublished); // 追加
 
-    // カテゴリの選択状態を更新
     const selectedIds = new Set(
       rawApiPostResponse.categories.map((c) => c.category.id),
     );
@@ -144,10 +142,8 @@ const Page: React.FC = () => {
     setIsInitialized(true);
   }, [isInitialized, rawApiPostResponse, checkableCategories]);
 
-  // チェックボックスの状態 (State) を更新する関数
   const switchCategoryState = (categoryId: string) => {
     if (!checkableCategories) return;
-
     setCheckableCategories(
       checkableCategories.map((category) =>
         category.id === categoryId
@@ -158,27 +154,22 @@ const Page: React.FC = () => {
   };
 
   const updateNewTitle = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ここにタイトルのバリデーション処理を追加する
     setNewTitle(e.target.value);
   };
 
   const updateNewContent = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // ここに本文のバリデーション処理を追加する
     setNewContent(e.target.value);
   };
 
   const updateNewCoverImageURL = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ここにカバーイメージURLのバリデーション処理を追加する
     setNewCoverImageURL(e.target.value);
   };
 
   // フォームの送信処理
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // この処理をしないとページがリロードされるので注意
-
+    e.preventDefault();
     setIsSubmitting(true);
 
-    // ▼▼ 追加 ウェブAPI (/api/admin/posts/[id]) にPUTリクエストを送信する処理
     try {
       const requestBody = {
         title: newTitle,
@@ -187,7 +178,10 @@ const Page: React.FC = () => {
         categoryIds: checkableCategories
           ? checkableCategories.filter((c) => c.isSelect).map((c) => c.id)
           : [],
+        isPublished, // 追加
       };
+      
+      // 管理用APIへPUTリクエスト
       const requestUrl = `/api/admin/posts/${id}`;
       console.log(`${requestUrl} => ${JSON.stringify(requestBody, null, 2)}`);
       const res = await fetch(requestUrl, {
@@ -200,19 +194,35 @@ const Page: React.FC = () => {
       });
 
       if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`); // -> catch節に移動
+        throw new Error(`${res.status}: ${res.statusText}`);
       }
 
-      // トップページに遷移
       setIsSubmitting(false);
-      router.push("/");
+      router.push("/admin/posts"); // 一覧に戻る
     } catch (error) {
       const errorMsg =
         error instanceof Error
-          ? `投稿記事のPOSTリクエストに失敗しました\n${error.message}`
+          ? `投稿記事の更新に失敗しました\n${error.message}`
           : `予期せぬエラーが発生しました\n${error}`;
       console.error(errorMsg);
       window.alert(errorMsg);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("本当にこの記事を削除しますか？")) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/posts/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("削除に失敗しました");
+      
+      router.push("/admin/posts");
+    } catch (error) {
+      console.error(error);
+      alert("削除に失敗しました");
       setIsSubmitting(false);
     }
   };
@@ -298,6 +308,19 @@ const Page: React.FC = () => {
         </div>
 
         <div className="space-y-1">
+          <div className="font-bold">公開設定</div>
+          <label className="flex items-center space-x-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={isPublished}
+              onChange={(e) => setIsPublished(e.target.checked)}
+              className="h-5 w-5 cursor-pointer"
+            />
+            <span className="text-gray-700">記事を公開する</span>
+          </label>
+        </div>
+
+        <div className="space-y-1">
           <div className="font-bold">タグ</div>
           <div className="flex flex-wrap gap-x-3.5">
             {checkableCategories!.length > 0 ? (
@@ -338,7 +361,7 @@ const Page: React.FC = () => {
               "rounded-md px-5 py-1 font-bold",
               "bg-red-500 text-white hover:bg-red-600",
             )}
-            // onClick={handleDelete}
+            onClick={handleDelete}
           >
             削除
           </button>
