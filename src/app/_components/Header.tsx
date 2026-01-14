@@ -1,50 +1,80 @@
 "use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { twMerge } from "tailwind-merge";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFish } from "@fortawesome/free-solid-svg-icons";
-import { supabase } from "@/utils/supabase"; // ◀ 追加
-import { useAuth } from "@/app/_hooks/useAuth"; // ◀ 追加
-import { useRouter } from "next/navigation"; // ◀ 追加
+import { faFish, faRightFromBracket, faRightToBracket } from "@fortawesome/free-solid-svg-icons";
+import { supabase } from "@/utils/supabase";
+import { useAuth } from "@/app/_hooks/useAuth";
+import { useRouter } from "next/navigation";
+import type { Category } from "@/app/_types/Category";
 
 const Header: React.FC = () => {
-  // ▼ 追加
   const router = useRouter();
   const { isLoading, session } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch("/api/categories");
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data);
+        }
+      } catch (error) {
+        console.error("カテゴリ取得エラー", error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   const logout = async () => {
     await supabase.auth.signOut();
     router.replace("/");
   };
-  // ▲ 追加
 
   return (
-    <header>
-      <div className="bg-slate-800 py-2">
-        <div
-          className={twMerge(
-            "mx-4 max-w-2xl md:mx-auto",
-            "flex items-center justify-between",
-            "text-lg font-bold text-white"
+    <header className="bg-slate-900 text-white shadow-md">
+      {/* 画面幅の95%まで広げる */}
+      <div className="mx-auto flex w-[95%] max-w-[1600px] items-center justify-between py-4">
+        
+        {/* ロゴとタイトル */}
+        <Link href="/" className="flex items-center text-xl font-bold hover:text-blue-300 transition-colors">
+          <FontAwesomeIcon icon={faFish} className="mr-2" />
+          <span>MyBlogApp</span>
+        </Link>
+
+        {/* ナビゲーション（PC用） */}
+        <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+          {/* カテゴリ一覧 */}
+          <div className="flex gap-4 border-r border-slate-700 pr-6 mr-2">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/?categoryId=${category.id}`}
+                className="hover:text-blue-400 transition-colors"
+              >
+                {category.name}
+              </Link>
+            ))}
+          </div>
+
+          <Link href="/about" className="hover:text-blue-400">About</Link>
+          
+          {!isLoading && (
+            session ? (
+              <button onClick={logout} className="flex items-center hover:text-red-400">
+                <FontAwesomeIcon icon={faRightFromBracket} className="mr-1" />
+                Logout
+              </button>
+            ) : (
+              <Link href="/login" className="flex items-center hover:text-green-400">
+                <FontAwesomeIcon icon={faRightToBracket} className="mr-1" />
+                Login
+              </Link>
+            )
           )}
-        >
-          <div>
-            <Link href="/">
-              <FontAwesomeIcon icon={faFish} className="mr-1" />
-              MyBlogApp
-            </Link>
-          </div>
-          <div className="flex gap-x-6">
-            {/* ▼ 追加 */}
-            {!isLoading &&
-              (session ? (
-                <button onClick={logout}>Logout</button>
-              ) : (
-                <Link href="/login">Login</Link>
-              ))}
-            {/* ▲ 追加 */}
-            <Link href="/about">About</Link>
-          </div>
-        </div>
+        </nav>
       </div>
     </header>
   );
